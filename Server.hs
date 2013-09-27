@@ -53,5 +53,5 @@ handle conn = do
   putStr "Headers: " >> mapM_ print hdrs
   sendAll conn msg
   sClose conn
-  where msg = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nPong!\r\n"
+  where msg = "Boogey woogey!"
 
