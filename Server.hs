@@ -2,19 +2,21 @@
 
 import           Control.Concurrent
 import           Control.Monad                (forever)
-import           Data.ByteString.Char8        hiding (putStrLn)
+import           Data.ByteString.Char8        hiding (putStrLn, putStr)
 import qualified Data.ByteString.Char8        as BC
 import           Network                      hiding (accept)
 import           Network.Socket
 import           Network.Socket.ByteString    (sendAll)
 import           System.IO
-import           System.IO.Streams
+import           System.IO.Streams            hiding (mapM_)
 import           System.IO.Streams.Attoparsec (parseFromStream)
 import           System.IO.Streams.Network    (socketToStreams)
 import           System.Random
 import           Data.Word
-import           RFC2616                      (Request(..),
-                                               request)
+import           RFC2616                      (request)
+import           RequestResponse              (requestMethod,
+                                               requestVersion,
+                                               requestUri)
 
 data PortOption = RandomPort
                 | DefaultPort
@@ -40,14 +42,15 @@ startWithPort num = withSocketsDo $ do
   forever $ do
     (conn, addr) <- accept sock
     putStrLn $ "Connection received on " ++ show addr
-    forkIO $ handle conn
-
+    forkIO $ handle conn 
 
 handle conn = do
   (is, os) <- socketToStreams conn
-  req <- parseFromStream request is
-  print req
-  --putStrLn $ "Resource requested: " ++ body
+  (req, hdrs) <- parseFromStream request is
+  putStr "Method: " >> print (requestMethod req)
+  putStr "Version: " >> print (requestVersion req)
+  putStr "URI: " >> print (requestUri req)
+  putStr "Headers: " >> mapM_ print hdrs
   sendAll conn msg
   sClose conn
   where msg = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nPong!\r\n"
