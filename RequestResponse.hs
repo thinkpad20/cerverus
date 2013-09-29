@@ -12,55 +12,36 @@ import Network.HTTP.Base hiding (RequestMethod(..),
 f .> g = g . f
 a ==> f = f a
 
-data RequestMethod = HEAD
-                   | GET
-                   | POST
-                   | PUT
-                   | DELETE
-                   | OPTIONS
-                   | TRACE
-                   | CONNECT
-                   | Custom ByteString
-                   deriving (Eq, Ord, Show)
+type RequestMethod = ByteString
+get, post, put, delete :: RequestMethod
+get = "GET"
+post = "POST"
+put = "PUT"
+delete = "DELETE"
 
-toReqMethod :: ByteString -> RequestMethod
-toReqMethod m = case m of
-  "GET"     -> GET
-  "POST"    -> POST
-  "PUT"     -> PUT
-  "DELETE"  -> DELETE
-  "OPTIONS" -> OPTIONS
-  "TRACE"   -> TRACE
-  "HEAD"    -> HEAD
-  "CONNECT" -> CONNECT
-  otherwise -> Custom m
-
-http09, http10, http11 :: ByteString
+type HttpVersion = ByteString
+http09, http10, http11 :: HttpVersion
 http09 = "0.9"
 http10 = "1.0"
 http11 = "1.1"
 
-type Params = M.Map ByteString ByteString
-newtype Uri = Uri (ByteString, Params) deriving (Eq, Ord, Show)
+type QueryParam = ByteString
+type QueryArg = ByteString
+type Queries = M.Map QueryParam (Maybe QueryArg)
+data Uri = Uri {
+      getPath :: ByteString
+    , getQueries :: Queries
+    } deriving (Eq, Ord, Show)
 
-toUri :: ByteString -> Uri
-toUri fullUri = case B8.split '?' fullUri of
-  [] -> Uri ("", M.empty)
-  [uri] -> Uri (uri, M.empty)
-  (uri:kvs:_) -> Uri (uri, kvs ==> (B8.split '&' .> 
-                                     map (B8.split '=') .>
-                                     map getPair .> 
-                                     M.fromList))
-  where getPair (a:b:_) = (a,b)
-        getPair [a] = (a,"")
-        getPair [] = ("","")
-
-mkRequest :: ByteString -> ByteString -> ByteString -> Request
-mkRequest method uri version = Request m u v where
-  m = toReqMethod method
-  u = toUri uri
-  v = version
-
+bstrToUri :: ByteString -> Uri
+bstrToUri uriStr = case B8.split '?' fullUri of
+  [] -> Uri "" M.empty
+  [path] -> Uri path M.empty
+  (path:kvs:_) -> Uri path (process kvs)
+  where getPair (a:b:_) = (a, Just b)
+        getPair [a] = (a, Nothing)
+        getPair [] = ("", Nothing)
+        process = M.fromList . map getPair . map (B8.split '=') . B8.split '&'
 
 data Header = Header {
       headerName  :: !ByteString

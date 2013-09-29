@@ -2,14 +2,11 @@
 
 module RFC2616
     (
-      Header(..)
-    , Request(..)
-    , Response(..)
-    , isToken
+      isToken
     , messageHeader
-    , request
+    , parseRequest
     , requestLine
-    , response
+    , parseResponse
     , responseLine
     , lowerHeader
     , lookupHeader
@@ -22,7 +19,7 @@ import Data.Attoparsec.Char8 (char8, endOfLine, isDigit_w8)
 import Data.Word (Word8)
 import qualified Data.ByteString.Char8 as B hiding (map)
 import qualified Data.ByteString as B (map)
-import RequestResponse (Request(..), Response(..), Header(..), mkRequest)
+import RequestResponse (Request(..), Response(..), Header(..), toUri)
 
 isToken :: Word8 -> Bool
 isToken w = w <= 127 && notInClass "\0-\31()<>@,;:\\\"/[]?={} \t" w
@@ -38,17 +35,17 @@ requestLine = do
   method <- P.takeWhile1 isToken <* char8 ' '
   uri <- P.takeWhile1 (/=32) <* char8 ' '
   version <- httpVersion <* endOfLine
-  return $! mkRequest method uri version
+  return $! Request method (bstrToUri uri) version
 
-messageHeader :: Parser Header
-messageHeader = do
+parseHeader :: Parser Header
+parseHeader = do
   header <- P.takeWhile isToken <* char8 ':' <* skipWhile P8.isHorizontalSpace
   body <- takeTill P8.isEndOfLine <* endOfLine
   bodies <- many $ skipSpaces *> takeTill P8.isEndOfLine <* endOfLine
   return $! Header header (body:bodies)
 
-request :: Parser (Request, [Header])
-request = (,) <$> requestLine <*> many messageHeader <* endOfLine
+parseRequest :: Parser (Request, [Header])
+request = (,) <$> requestLine <*> many parseHeader <* endOfLine
 
 responseLine :: Parser Response
 responseLine = do
@@ -57,8 +54,8 @@ responseLine = do
   msg <- P.takeTill P8.isEndOfLine <* endOfLine
   return $! Response version code msg
 
-response :: Parser (Response, [Header])
-response = (,) <$> responseLine <*> many messageHeader <* endOfLine
+parseResponse :: Parser (Response, [Header])
+response = (,) <$> responseLine <*> many parseHeader <* endOfLine
 
 lowerHeader :: Header -> Header
 lowerHeader (Header n v) = Header (B.map toLower n) (map (B.map toLower) v)
